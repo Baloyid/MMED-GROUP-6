@@ -9,7 +9,7 @@ p_load(dplyr, ggplot2, tidyr, deSolve, stringr)
 
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = 'data/p500', pattern = "*.csv", full.names = TRUE)
+data_files <- list.files(path = 'data/p1000', pattern = "*.csv", full.names = TRUE)
 
 #' Function to read and process a single CSV file
 #'
@@ -73,9 +73,9 @@ solve_chainbinomial <- function(time, initial_state, parameters) {
   
   
   
-  prob_infect = 1 - (1 - parameters[4]*(last(states$I)/N)*parameters[1])**parameters[4]
-  prob_recover = parameters[2]
-  prob_reinfect = parameters[3]
+  prob_infect = 1 - (1 - parameters[4]*(last(states$I)/N)*parameters[1])**parameters[4] |> as.numeric()
+  prob_recover = parameters[2] |> as.numeric()
+  prob_reinfect = parameters[3] |> as.numeric()
   
   for (i in time) {
     
@@ -195,7 +195,7 @@ ggplot(fullpar2) +
   geom_density(aes(x = value)) + 
   facet_wrap(~name, scales = "free") +
   geom_vline(data = truepars, aes(xintercept = value, group = name), col = 'blue', size = 1) + 
-  labs(title = 'Parameter values for N = 500', x = 'Parameter', y = 'Density') +
+  labs(title = 'Parameter values for N = 1,000', x = 'Parameter', y = 'Density') +
   theme_bw(base_line_size = 0) +
   theme(panel.spacing = unit(1, "lines"))
 
@@ -214,13 +214,12 @@ for (i in 1:length(data_files)) {
   
   # Solving the system of equations: SIRS-ODE using the fitted parameters
   # using a single set of parameter values
-  out <- ode(y = (filtered_data)[1, 1:3] |> unlist(),
-             times = 1:nrow(filtered_data),
-             func = sirs_model_cp,
-             parms = fullpar[i, ])
-  
-  # Convert to data frame for easier handling
-  out <- as.data.frame(out)
+  out <- solve_chainbinomial(initial_state = (filtered_data)[1, 1:3] |> unlist(),
+                             time = 1:nrow(filtered_data),
+                             parameters = fullpar[i, ]) |>
+    data.frame() |>
+    mutate(time = row_number())
+
   
   # plottiong to confirm
   plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
@@ -232,10 +231,11 @@ for (i in 1:length(data_files)) {
 
 do.call(grid.arrange, plts)
 
+# storing the results of the parameters
 fullpar = fullpar |>
   data.frame()
 rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, 'output/sirs-ode/p1000-pars.csv', row.names = F)
+write.csv(fullpar, 'output/sirs-chain-binomial/p1000-pars.csv', row.names = F)
 
 
 
