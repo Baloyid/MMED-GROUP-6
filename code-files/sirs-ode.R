@@ -10,7 +10,7 @@ p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
 
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = 'data/p500', pattern = "*.csv", full.names = TRUE)
+data_files <- list.files(path = 'data/p1000', pattern = "*.csv", full.names = TRUE)
 
 #' Function to read and process a single CSV file
 #'
@@ -18,10 +18,10 @@ data_files <- list.files(path = 'data/p500', pattern = "*.csv", full.names = TRU
 #'
 #' @return a single file read
 process_file <- function(file) {
-  read.csv(file) %>%
-    select(time, S = Susceptible, I = Infected.infectious, R = Recovered) %>%
+  read.csv(file) |>
+    select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
     mutate(P = I / (S + I + R),
-           file = file) %>%
+           file = file) |>
     select(S, I, R, time, P, file)
 }
 
@@ -160,7 +160,7 @@ fullpar2 = fullpar |>
   pivot_longer(everything())
 
 truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
-                      value = c(NA, .3, 1/15, 1/10))
+                      value = c(NA, .3, 1/15, 1/5))
 
 ggplot(fullpar2) +
   geom_density(aes(x = value)) + 
@@ -203,6 +203,10 @@ for (i in 1:length(data_files)) {
 
 do.call(grid.arrange, plts)
 
+fullpar = fullpar |>
+  data.frame()
+rownames(fullpar) = 1:nrow(fullpar)
+write.csv(fullpar, 'output/sirs-ode/p1000-pars.csv', row.names = F)
 
 
 
