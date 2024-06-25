@@ -9,10 +9,22 @@ p_load(dplyr, ggplot2, tidyr, deSolve, stringr)
 
 # Load data from ABM ------------------------------------------------------
 
-abm_data = read.csv('data/p500/sirs-model.csv') |>
-  select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
-  mutate(P = I/(S+I+R)) |>
-  select(S, I, R, time, P)
+data_files <- list.files(path = 'data/p500', pattern = "*.csv", full.names = TRUE)
+
+#' Function to read and process a single CSV file
+#'
+#' @param file the file path and name and extension e.g. 'data/p500/sim.csv'
+#'
+#' @return a single file read
+process_file <- function(file) {
+  read.csv(file) |>
+    select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
+    mutate(P = I / (S + I + R),
+           file = file) |>
+    select(S, I, R, time, P, file)
+}
+
+abm_data <- map_dfr(data_files, process_file)
 
 
 
@@ -133,35 +145,102 @@ nllikelihood <- function(parms, obsDat=myDat, abm_data = abm_data) {
   return(sum(nlls))
 }
 
-nllikelihood(parms = c(prob_infect = 0.3, prob_recover = 0.5, prob_reinfect = 0.4, c=2),
-             obsDat=myDat,
-             abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
+# sample code
+# nllikelihood(parms = c(prob_infect = 0.3, prob_recover = 0.5, prob_reinfect = 0.4, c=2),
+#              obsDat=myDat,
+#              abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
+
 
 
 # Fitting the model by MLE ------------------------------------------------
 
-optim.vals <- optim(par = c(prob_infect = 0.2, prob_recover = .3, prob_reinfect = 0.1, c=2)
-                    , nllikelihood
-                    # , fixed.params = disease_params()
-                    , obsDat = myDat
-                    , abm_data = abm_data
-                    , control = list(trace = 1, maxit = 1000)
-                    , method = "BFGS")
+for (i in 1:length(data_files)) {
+  message('Running simulation: ', i, ' out of : ', length(data_files))
+  
+  # using only the chosen simulation
+  filtered_data = abm_data |> 
+    filter(file == data_files[i]) |>
+    select(-file)
+  
+  # sampling from the ABM: Here we choose to use all the abm data
+  myDat = sampleEpidemic(filtered_data)
+  
+  # optimizing 
+  optim.vals <- optim(par = c(prob_infect=.3, prob_recover=.4, prob_reinfect=.3, c = 2)
+                      , nllikelihood
+                      , obsDat = myDat
+                      , abm_data = filtered_data
+                      , control = list(trace = 1, maxit = 1000)
+                      , method = "Nelder-Mead")
+  
+  pars = optim.vals$par |> data.frame() |> t()
+  
+  if (i == 1) fullpar = pars
+  else fullpar = rbind(fullpar, pars)
+  
+}
 
-# THE CHOSEN PARAMETERS
-optim.vals$par
 
 
-# plotting to confirm
-out = solve_chainbinomial(time = time, initial_state = initial_state,
-                          parameters = optim.vals$par) |> # optim.vals$par
-  as.data.frame() |>
-  mutate(time = row_number())
+# Plotting the parameter values 
+fullpar2 = fullpar |>
+  data.frame() |>
+  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection')) |>
+  pivot_longer(everything())
 
-ggplot(abm_data, aes(x = time)) + 
-  geom_point(aes(y = I), cex = .3, show.legend = F) + 
-  geom_line(data = out, aes(x = time, y = I), col = 'red') + 
-  theme_classic()
+truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
+                      value = c(NA, .3, 1/15, 1/5))
+
+ggplot(fullpar2) +
+  geom_density(aes(x = value)) + 
+  facet_wrap(~name, scales = "free") +
+  geom_vline(data = truepars, aes(xintercept = value, group = name), col = 'blue', size = 1) + 
+  labs(title = 'Parameter values for N = 500', x = 'Parameter', y = 'Density') +
+  theme_bw(base_line_size = 0) +
+  theme(panel.spacing = unit(1, "lines"))
+
+
+
+# Plotting one occurence
+plts = list()
+
+for (i in 1:length(data_files)) {
+  
+  # using only the chosen simulation
+  filtered_data = abm_data |> 
+    filter(file == data_files[i]) |>
+    select(-file)
+  
+  
+  # Solving the system of equations: SIRS-ODE using the fitted parameters
+  # using a single set of parameter values
+  out <- ode(y = (filtered_data)[1, 1:3] |> unlist(),
+             times = 1:nrow(filtered_data),
+             func = sirs_model_cp,
+             parms = fullpar[i, ])
+  
+  # Convert to data frame for easier handling
+  out <- as.data.frame(out)
+  
+  # plottiong to confirm
+  plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
+    geom_point(aes(y = I), cex = .3) + 
+    geom_line(data = out, aes(x = time, y = I), col = 'red') + 
+    theme_classic()
+  
+}
+
+do.call(grid.arrange, plts)
+
+fullpar = fullpar |>
+  data.frame()
+rownames(fullpar) = 1:nrow(fullpar)
+write.csv(fullpar, 'output/sirs-ode/p1000-pars.csv', row.names = F)
+
+
+
+
+
 
 
 
