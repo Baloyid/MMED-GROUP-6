@@ -1,7 +1,9 @@
 # How do agent based models and compartmental models differ in their predictions of SIRS transmission dynamics ?
 
 Overall research topic: Investigating model assumptions using model comparisons. 
+
 Members: Dumisane, Lindokuhle, Yanchao, Ryan, Wisdom and Stanley. 
+
 Facilitator: Slimane BenMiled
 
 
