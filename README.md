@@ -6,8 +6,11 @@ Members: Dumisane, Lindokuhle, Yanchao, Ryan, Wisdom and Stanley.
 
 Facilitator: Slimane BenMiled
 
+---
 
 ![SIRS Model Diagram](readme.png)
+
+---
 
 The repository contains the code and work for group 6. The repository is structured into folders for code, data, outputs and resources.
 
