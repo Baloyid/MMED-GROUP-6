@@ -7,10 +7,13 @@
 library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
 
+# currently loading datasets from n = ?
+current_n = 'p4000'
+
 
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = 'data/p1000', pattern = "*.csv", full.names = TRUE)
+data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", full.names = TRUE)
 
 #' Function to read and process a single CSV file
 #'
@@ -88,8 +91,10 @@ sampleEpidemic <- function(simDat # Simulated "data" which we treat as real
   
   numPos <- rbinom(length(numSamp), round(numSamp, 0), prev_at_sample_times)
   
-  lci <- mapply(function(x,n) binom.test(x,n)$conf.int[1], x = numPos, n = round(numSamp, 0))
-  uci <- mapply(function(x,n) binom.test(x,n)$conf.int[2], x = numPos, n = round(numSamp, 0)) 
+  lci = qbeta(.025, numPos, round(numSamp, 0) - numPos + 1)
+  uci = qbeta((1-.025), numPos + 1, round(numSamp, 0) - numPos)
+  # lci <- mapply(function(x,n) binom.test(x,n)$conf.int[1], x = numPos, n = round(numSamp, 0))
+  # uci <- mapply(function(x,n) binom.test(x,n)$conf.int[2], x = numPos, n = round(numSamp, 0)) 
   
   return(data.frame(time = 1:length(numPos), numPos, numSamp, sampPrev =  numPos/numSamp,
                     lci = lci, uci = uci))
@@ -137,7 +142,7 @@ for (i in 1:length(data_files)) {
   myDat = sampleEpidemic(filtered_data)
   
   # optimizing 
-  optim.vals <- optim(par = c(c = 3, p = .1, gamma = .4, xi = .5)
+  optim.vals <- optim(par = c(c = 3, p = .4, gamma = .05, xi = .1)
                       , nllikelihood
                       , obsDat = myDat
                       , abm_data = filtered_data
@@ -160,7 +165,7 @@ fullpar2 = fullpar |>
   pivot_longer(everything())
 
 truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
-                      value = c(NA, .3, 1/15, 1/5))
+                      value = c(NA, .35, 1/13, 1/7))
 
 ggplot(fullpar2) +
   geom_density(aes(x = value)) + 
@@ -206,7 +211,8 @@ do.call(grid.arrange, plts)
 fullpar = fullpar |>
   data.frame()
 rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, 'output/sirs-ode/p1000-pars.csv', row.names = F)
+write.csv(fullpar, paste0('output/sirs-ode/', current_n, '-pars.csv'), row.names = F)
+
 
 
 
