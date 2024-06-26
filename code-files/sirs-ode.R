@@ -8,7 +8,7 @@ library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
 
 # currently loading datasets from n = ?
-current_n = 'p4000'
+current_n = 'p5000'
 
 
 # Load data from ABM ------------------------------------------------------
