@@ -6,7 +6,7 @@ c = 3
 prob_infect = .3
 N = 1000
 
-# definition 1
+# definition 1 for prob of infection
 pp = 1 - (1 - c*(ii/N)*prob_infect)**c
 
 # definition 2
@@ -17,7 +17,7 @@ pp = 1 - (1 - prob_infect)**(c*ii/N)
 
 plot(ii, pp, type = 'o')
 
-
+# visualizing for contacts differences
 dd = data.frame(
   I = seq(from = 100, to = 1000, by = 50),
   N = 1000

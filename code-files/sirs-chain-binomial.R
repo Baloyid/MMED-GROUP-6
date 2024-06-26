@@ -6,10 +6,12 @@
 library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr)
 
+# currently loading datasets from n = ?
+current_n = 'p4000'
 
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = 'data/p1000', pattern = "*.csv", full.names = TRUE)
+data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", full.names = TRUE)
 
 #' Function to read and process a single CSV file
 #'
@@ -104,18 +106,18 @@ solve_chainbinomial <- function(time, initial_state, parameters) {
 #'
 #' @return a dataset with time, positive cases, sample size, prevalence, lower and upper CI
 sampleEpidemic <- function(simDat) {
-  
   prev_at_sample_times <- simDat |> pull(P)
   samp_size = lag(simDat$S) |> zoo::na.locf(fromLast = T)
   numSamp = samp_size
   
   numPos <- rbinom(length(numSamp), round(numSamp, 0), prev_at_sample_times)
   
-  lci <- mapply(function(x,n) binom.test(x,n)$conf.int[1], x = numPos, n = round(numSamp, 0))
-  uci <- mapply(function(x,n) binom.test(x,n)$conf.int[2], x = numPos, n = round(numSamp, 0)) 
+  lci = qbeta(.025, numPos, round(numSamp, 0) - numPos + 1)
+  uci = qbeta((1-.025), numPos + 1, round(numSamp, 0) - numPos)
+  # lci <- mapply(function(x,n) binom.test(x,n)$conf.int[1], x = numPos, n = round(numSamp, 0))
+  # uci <- mapply(function(x,n) binom.test(x,n)$conf.int[2], x = numPos, n = round(numSamp, 0)) 
   
-  return(data.frame(time = simDat |> pull(time),
-                    numPos, numSamp, sampPrev =  numPos/numSamp,
+  return(data.frame(time = 1:length(numPos), numPos, numSamp, sampPrev =  numPos/numSamp,
                     lci = lci, uci = uci))
 }
 
@@ -235,8 +237,7 @@ do.call(grid.arrange, plts)
 fullpar = fullpar |>
   data.frame()
 rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, 'output/sirs-chain-binomial/p1000-pars.csv', row.names = F)
-
+write.csv(fullpar, paste0('output/sirs-chain-binomial/', current_n, '-pars.csv'), row.names = F)
 
 
 

@@ -1,0 +1,65 @@
+<mxfile host="Electron" modified="2024-06-26T05:36:24.622Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.1.0 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="O_eyqNNIIGFjR3_ovpbS" version="24.1.0" type="device">
+  <diagram name="Page-1" id="FfW-vgN8XdzciXdpLEW2">
+    <mxGraphModel dx="954" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="_67KC-FvRFygbd9s3Flm-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="_67KC-FvRFygbd9s3Flm-1" target="_67KC-FvRFygbd9s3Flm-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-13" value="$$\beta$$" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="_67KC-FvRFygbd9s3Flm-8">
+          <mxGeometry x="0.02" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-1" value="S" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="30" y="130" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="_67KC-FvRFygbd9s3Flm-6" target="_67KC-FvRFygbd9s3Flm-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-14" value="$$\gamma$$" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="_67KC-FvRFygbd9s3Flm-9">
+          <mxGeometry x="-0.0444" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-6" value="I" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="180" y="130" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-7" value="R" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="320" y="130" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="200" y="130" as="sourcePoint" />
+            <mxPoint x="110" y="155" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="200" y="110" />
+              <mxPoint x="110" y="110" />
+              <mxPoint x="110" y="155" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="_67KC-FvRFygbd9s3Flm-7" target="_67KC-FvRFygbd9s3Flm-1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="180" y="235" as="sourcePoint" />
+            <mxPoint x="120" y="210" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="340" y="180" />
+              <mxPoint x="340" y="210" />
+              <mxPoint x="55" y="210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-15" value="$$\xi$$" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="_67KC-FvRFygbd9s3Flm-12">
+          <mxGeometry x="0.0686" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="_67KC-FvRFygbd9s3Flm-16" value="&lt;div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;&lt;br&gt;&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;$$\frac{dS}{dt} = -\beta \frac{S I}{N} + \xi R \\$$&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;$$\frac{dI}{dt} = \beta \frac{S I}{N} - \gamma I \\$$&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;$$\frac{dR}{dt} = \gamma I - \xi R$$&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;&lt;br&gt;&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;where:&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;\(S(t)\) is the number of susceptible individuals at time \(t\),&lt;/span&gt;&lt;br&gt;&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;\(I(t)\) is the number of infectious individuals at time \(t\),&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;\(R(t)\) is the number of recovered (and immune) individuals at time \(t\),&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;\(\beta\) is the transmission rate,&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;\(\gamma\) is the recovery rate,&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;\(\xi\) is the rate of loss of immunity (reinfection rate),&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;\(N = S(t) + I(t) + R(t)\) is the total population size, assumed constant.&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;$$$$&lt;/div&gt;&lt;/div&gt;&lt;div style=&quot;text-align: justify;&quot;&gt;&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="320" y="270" width="430" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
