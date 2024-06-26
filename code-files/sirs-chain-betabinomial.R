@@ -32,14 +32,14 @@ abm_data <- map_dfr(data_files, process_file)
 
 # Fitting an SIR model by MLE ---------------------------------------------
 
-#' chain binomial SIR function
+#' chain betabinomial SIR function
 #'
 #' @param time gives the time we want our simulation to run from
 #' @param state gives the state values for S, I, R
 #' @param parameters include: prob_infection, prob_recovery, prob_reinfection, contact_rate
 #'
 #' @return list with dS, dI, dR
-sirs_chainbinomial <- function(time, state, parameters) {
+sirs_chainbetabinomial <- function(time, state, parameters) {
   
   with(as.list(c(state, parameters)), {
     N <- S + I + R
@@ -47,9 +47,15 @@ sirs_chainbinomial <- function(time, state, parameters) {
     prob_infect_full = 1 - (1 - c*(I/N)*prob_infect)**c
     
     # Differential equations
-    infected_individuals = rbinom(size = last(S), n = 1, prob = prob_infect_full)
-    recovered_individuals = rbinom(size = last(I), n = 1, prob = prob_recover)
-    reinfected_individuals = rbinom(size = last(R), n = 1, prob = prob_reinfect)
+    
+    # (gamlss.dist::rBB(n = 1, mu = prob_infect_full, sigma = .1, size=last(S)))
+    # (gamlss.dist::rBB(n = 1, mu = prob_recover, sigma = .1, size=last(I)))
+    # (gamlss.dist::rBB(n = 1, mu = prob_reinfect, sigma = .1, size=last(R)))
+    
+    
+    infected_individuals = (gamlss.dist::rBB(n = 1, mu = prob_infect_full, sigma = .1, bd=last(S)))
+    recovered_individuals = (gamlss.dist::rBB(n = 1, mu = prob_recover, sigma = .1, bd=last(I)))
+    reinfected_individuals = (gamlss.dist::rBB(n = 1, mu = prob_reinfect, sigma = .1, bd=last(R)))
     
     dS = reinfected_individuals - infected_individuals
     dI = infected_individuals - recovered_individuals
@@ -69,7 +75,7 @@ sirs_chainbinomial <- function(time, state, parameters) {
 #' @param parameters include: prob_infection, prob_recovery, prob_reinfection, contact_rate
 #'
 #' @return dataset with time series of S, I, R
-solve_chainbinomial <- function(time, initial_state, parameters) {
+solve_chainbetabinomial <- function(time, initial_state, parameters) {
   states = as.list(initial_state)
   N <- last(states$S) + last(states$I) + last(states$R)
   
@@ -82,9 +88,9 @@ solve_chainbinomial <- function(time, initial_state, parameters) {
   for (i in time) {
     
     # Differential equations
-    infected_individuals = rbinom(size = last(states$S), n = 1, prob = prob_infect)
-    recovered_individuals = rbinom(size = last(states$I), n = 1, prob = prob_recover)
-    reinfected_individuals = rbinom(size = last(states$R), n = 1, prob = prob_reinfect)
+    infected_individuals = (gamlss.dist::rBB(n = 1, mu = prob_infect, sigma = .1, bd=last(states$S)))
+    recovered_individuals = (gamlss.dist::rBB(n = 1, mu = prob_recover, sigma = .1, bd=last(states$I)))
+    reinfected_individuals = (gamlss.dist::rBB(n = 1, mu = prob_reinfect, sigma = .1, bd=last(states$R)))
     
     states$S = c(states$S, last(states$S) - infected_individuals + reinfected_individuals)
     states$I = c(states$I, last(states$I) + infected_individuals - recovered_individuals)
@@ -97,7 +103,7 @@ solve_chainbinomial <- function(time, initial_state, parameters) {
 }
 
 # trial
-# sirs_chainbinomial(time = 1:200, state = c(S=1000, I = 90, R = 30), parameters = parms)
+# sirs_chainbetabinomial(time = 1:200, state = c(S=1000, I = 90, R = 30), parameters = parms)
 
 
 #' Function for sampling from the ABM world dataset: returns either full or reduced sample
@@ -110,7 +116,8 @@ sampleEpidemic <- function(simDat) {
   samp_size = lag(simDat$S) |> zoo::na.locf(fromLast = T)
   numSamp = samp_size
   
-  numPos <- rbinom(length(numSamp), round(numSamp, 0), prev_at_sample_times)
+  numPos = (gamlss.dist::rBB(n = length(numSamp), mu = prev_at_sample_times, sigma = .1, bd=round(numSamp, 0)))
+  # numPos <- rbinom(length(numSamp), round(numSamp, 0), prev_at_sample_times)
   
   lci = qbeta(.025, numPos, round(numSamp, 0) - numPos + 1)
   uci = qbeta((1-.025), numPos + 1, round(numSamp, 0) - numPos)
@@ -138,19 +145,19 @@ nllikelihood <- function(parms, obsDat=myDat, abm_data = abm_data) {
   initial_state = (abm_data)[1, 1:3] |> unlist()
   time = seq(from = 1, to = max(abm_data$time), by = 1)
   
-  simDat = solve_chainbinomial(time = time, 
+  simDat = solve_chainbetabinomial(time = time, 
                                initial_state = initial_state,
                                parameters = parms) |>
     mutate(P = I / (S + I + R))
   
-  nlls <- -dbinom(obsDat$numPos, round(obsDat$numSamp, 0), prob = simDat$P, log = T)
+  nlls <- -gamlss.dist::dBB(x = obsDat$numPos, mu = simDat$P, sigma = .1, bd = round(obsDat$numSamp, 0), log = T)
   return(sum(nlls))
 }
 
 # sample code
-# nllikelihood(parms = c(prob_infect = 0.3, prob_recover = 0.5, prob_reinfect = 0.4, c=2),
-#              obsDat=myDat,
-#              abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
+nllikelihood(parms = c(prob_infect = 0.1, prob_recover = 0.05, prob_reinfect = 0.04, c=2),
+             obsDat=myDat,
+             abm_data = abm_data) ## loglikelihood of the true parameters (which we usually never know)
 
 
 
@@ -216,12 +223,12 @@ for (i in 1:length(data_files)) {
   
   # Solving the system of equations: SIRS-ODE using the fitted parameters
   # using a single set of parameter values
-  out <- solve_chainbinomial(initial_state = (filtered_data)[1, 1:3] |> unlist(),
+  out <- solve_chainbetabinomial(initial_state = (filtered_data)[1, 1:3] |> unlist(),
                              time = 1:nrow(filtered_data),
                              parameters = fullpar[i, ]) |>
     data.frame() |>
     mutate(time = row_number())
-
+  
   
   # plottiong to confirm
   plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
@@ -237,5 +244,5 @@ do.call(grid.arrange, plts)
 fullpar = fullpar |>
   data.frame()
 rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, paste0('output/sirs-chain-binomial/', current_n, '-pars.csv'), row.names = F)
+write.csv(fullpar, paste0('output/sirs-chain-betabinomial/', current_n, '-pars.csv'), row.names = F)
 
