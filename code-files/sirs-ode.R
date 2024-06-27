@@ -5,15 +5,15 @@
 # Libs --------------------------------------------------------------------
 
 library(pacman)
-p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
+p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr, broom)
 
 # currently loading datasets from n = ?
-current_n = 'p2000'
+current_n = 'p4000'
 
 
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", full.names = TRUE, recursive = T)
+data_files <- list.files(path = paste0('data'), pattern = "*.csv", full.names = TRUE, recursive = T)
 
 #' Function to read and process a single CSV file
 #'
@@ -21,9 +21,13 @@ data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", f
 #'
 #' @return a single file read
 process_file <- function(file) {
-  print(file)
-  read.csv(file) |>
-    select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
+  # Read the file as a text string
+  file_content <- read_file(file)
+  file_content <- gsub(";", ",", file_content)
+  # print(file)
+  
+  read_csv(I(file_content)) |>
+    select(time, S = Susceptible, I = `Infected-infectious`, R = Recovered) |>
     mutate(P = I / (S + I + R),
            file = file) |>
     select(S, I, R, time, P, file)
@@ -178,15 +182,62 @@ pop_params = abm_data |>
 # Plotting the parameter values 
 fullpar2 = cbind(fullpar, pop_params) |>
   data.frame() |>
-  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection', 'Population size', 'Neighbourhood')) |>
+  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection', 'Population size', 'Neighbourhood'))
+fullpar2 = fullpar2 |>
+  mutate(`Probability of 
+infection` = ifelse(`Probability of 
+infection` < 0, 0, `Probability of 
+infection`))
+
+fullpar2 |>
   pivot_longer(-c(`Population size`, `Neighbourhood`))
+
+# boxplot
+fullpar2 |> ggplot() + 
+  geom_boxplot(aes(x = as.factor(`Population size`),
+                   y = `Probability of \ninfection`,
+                   fill = Neighbourhood)) + 
+  geom_hline(aes(yintercept = .4), col = 'blue') + 
+  labs(title = 'Probability of infection over population size ranges',
+       x = 'Population size', y = 'Infection probability',
+       fill = 'Neighbourhood type: ') +
+  theme_bw(base_line_size = 0) + 
+  theme(legend.position = 'bottom')
+
+# density
+fullpar2 |> ggplot() + 
+  geom_density(aes(#x = as.factor(`Population size`),
+                   x = `Probability of \ninfection`,
+                   fill = as.factor(`Population size`)),
+               alpha = .2) + 
+  facet_wrap(~Neighbourhood) +
+  geom_vline(aes(xintercept = .4), col = 'blue') + 
+  labs(title = 'Probability of infection over population size ranges',
+       x = 'Population size', y = 'Infection probability',
+       fill = 'Neighbourhood type: ') +
+  theme_bw(base_line_size = 0) + 
+  theme(legend.position = 'bottom')
+
+
+# linear model to get the confidence intervals ----------------------------
+
+m1 = glm(`Probability of \ninfection` ~ `Population size` - 1,
+    data = fullpar2 |> mutate(`Population size` = as.factor(`Population size`)),
+    family = binomial(link = 'logit'))
+tidy(m1, conf.int = T, exponentiate = T)
+
+m2 = glm(`Probability of \ninfection` ~ Neighbourhood - 1,
+         data = fullpar2 |> mutate(`Population size` = as.factor(`Population size`)),
+         family = binomial(link = 'logit'))
+tidy(m2, conf.int = T, exponentiate = T)
+
 
 truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
                       value = c(NA, .4, 1/7, 1/14))
 
 ggplot(fullpar2 |> filter(name != 'Contact rate')) +
   geom_density(aes(x = value, col = Neighbourhood)) + 
-  facet_wrap(~name, scales = "free") +
+  facet_wrap(~name, scales = "free", nrow = 2) +
   geom_vline(data = truepars |> filter(name != 'Contact rate'),
              aes(xintercept = value, group = name), col = 'blue', size = 1) + 
   labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
@@ -196,7 +247,7 @@ ggplot(fullpar2 |> filter(name != 'Contact rate')) +
 # a boxplot
 ggplot(fullpar2 |> filter(name != 'Contact rate')) +
   geom_boxplot(aes(x = name, y = value, col = Neighbourhood)) + 
-  facet_wrap(~name, scales = "free") +
+  facet_wrap(~name, scales = "free", nrow=2) +
   geom_point(data = truepars |> filter(name != 'Contact rate'),
              aes(y = value, x = name), col = 'black', size = 3) + 
   labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
@@ -207,7 +258,7 @@ ggplot(fullpar2 |> filter(name != 'Contact rate')) +
 # Plotting one occurence
 plts = list()
 
-for (i in 1:length(data_files)) {
+for (i in 151:length(data_files)) {
   
   # using only the chosen simulation
   filtered_data = abm_data |> 
@@ -220,23 +271,37 @@ for (i in 1:length(data_files)) {
   out <- ode(y = (filtered_data)[1, 1:3] |> unlist(),
              times = 1:nrow(filtered_data),
              func = sirs_model_cp,
-             parms = fullpar[i, ])
+             parms = fullpar[i, ]) |>
+    data.frame() |>
+    mutate(time = row_number(),
+           N = S + I + R)
   
-  # Convert to data frame for easier handling
-  out <- as.data.frame(out)
+  # getting binomial confidence intervals using I and N
+  bci = with(out, DescTools::BinomCI(x = I, n = N, method = 'wilson') |>
+               data.frame() |>
+               mutate(
+                 across(
+                   .cols = everything(),
+                   .fns = \(x) x * N
+                 )
+               )
+  )
   
-  # plottiong to confirm
   plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
     geom_point(aes(y = I), cex = .3) + 
-    geom_line(data = out, aes(x = time, y = I), col = 'red') + 
-    theme_classic()
+    geom_line(data = cbind(out, bci),
+              aes(x = time, y = I), col = 'red') +
+    geom_ribbon(data = cbind(out, bci),
+                aes(x = time, ymin = lwr.ci, ymax = upr.ci), 
+                fill = 'red', alpha = .2) +
+  theme_classic()
   
 }
 
 do.call(grid.arrange, plts)
 
-fullpar = fullpar |>
-  data.frame()
+fullpar = fullpar2 |>
+  data.frame(check.names = F)
 rownames(fullpar) = 1:nrow(fullpar)
 write.csv(fullpar, paste0('output/sirs-ode/', current_n, '-pars.csv'), row.names = F)
 

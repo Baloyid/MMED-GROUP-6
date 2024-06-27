@@ -6,27 +6,30 @@
 library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr)
 
-# currently loading datasets from n = ?
-current_n = 'p5000'
-
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", full.names = TRUE)
-
+data_files <- list.files(path = paste0('data'), pattern = "*.csv", full.names = TRUE, recursive = T)
+data_files = data_files[101:120]
 #' Function to read and process a single CSV file
 #'
 #' @param file the file path and name and extension e.g. 'data/p500/sim.csv'
 #'
 #' @return a single file read
 process_file <- function(file) {
-  read.csv(file) |>
-    select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
+  # Read the file as a text string
+  file_content <- read_file(file)
+  file_content <- gsub(";", ",", file_content)
+  # print(file)
+  
+  read_csv(I(file_content)) |>
+    select(time, S = Susceptible, I = `Infected-infectious`, R = Recovered) |>
     mutate(P = I / (S + I + R),
            file = file) |>
     select(S, I, R, time, P, file)
 }
 
 abm_data <- map_dfr(data_files, process_file)
+
 
 
 
@@ -172,7 +175,7 @@ for (i in 1:length(data_files)) {
                       , nllikelihood
                       , obsDat = myDat
                       , abm_data = filtered_data
-                      , control = list(trace = 1, maxit = 1000)
+                      , control = list(trace = 0, maxit = 1000)
                       , method = "Nelder-Mead")
   
   pars = optim.vals$par |> data.frame() |> t()
@@ -181,6 +184,60 @@ for (i in 1:length(data_files)) {
   else fullpar = rbind(fullpar, pars)
   
 }
+
+
+# creating the datasets showing population size and neighbourhood type
+pop_params = abm_data |>
+  select(file) |>
+  distinct() |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  select(-file)
+
+
+# Plotting the parameter values 
+fullpar2 = cbind(fullpar, pop_params) |>
+  data.frame() |>
+  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection', 'Population size', 'Neighbourhood'))
+fullpar2 = fullpar2 |>
+  mutate(`Probability of \ninfection` = ifelse(`Probability of \ninfection` < 0, 0, `Probability of \ninfection`))
+
+fullpar2 |>
+  pivot_longer(-c(`Population size`, `Neighbourhood`))
+
+# boxplot
+fullpar2 |> ggplot() + 
+  geom_boxplot(aes(x = as.factor(`Population size`),
+                   y = `Probability of \ninfection`,
+                   fill = Neighbourhood)) + 
+  geom_hline(aes(yintercept = .4), col = 'blue') + 
+  labs(title = 'Probability of infection over population size ranges',
+       x = 'Population size', y = 'Infection probability',
+       fill = 'Neighbourhood type: ') +
+  theme_bw(base_line_size = 0) + 
+  theme(legend.position = 'bottom')
+
+# density
+fullpar2 |> ggplot() + 
+  geom_density(aes(#x = as.factor(`Population size`),
+    x = `Probability of \ninfection`,
+    fill = as.factor(`Population size`)),
+    alpha = .2) + 
+  facet_wrap(~Neighbourhood) +
+  geom_vline(aes(xintercept = .4), col = 'blue') + 
+  labs(title = 'Probability of infection over population size ranges',
+       x = 'Population size', y = 'Infection probability',
+       fill = 'Neighbourhood type: ') +
+  theme_bw(base_line_size = 0) + 
+  theme(legend.position = 'bottom')
+
+
+
+
+
+
 
 
 
@@ -220,14 +277,29 @@ for (i in 1:length(data_files)) {
                              time = 1:nrow(filtered_data),
                              parameters = fullpar[i, ]) |>
     data.frame() |>
-    mutate(time = row_number())
-
+    mutate(time = row_number(),
+           N = S + I + R)
   
-  # plottiong to confirm
+  # getting binomial confidence intervals using I and N
+  bci = with(out, DescTools::BinomCI(x = I, n = N, method = 'wilson') |>
+               data.frame() |>
+               mutate(
+                 across(
+                   .cols = everything(),
+                   .fns = \(x) x * N
+                 )
+               )
+  )
+  
+  
   plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
     geom_point(aes(y = I), cex = .3) + 
-    geom_line(data = out, aes(x = time, y = I), col = 'red') + 
-    theme_classic()
+    geom_line(data = cbind(out, bci),
+              aes(x = time, y = I), col = 'red') +
+    geom_ribbon(data = cbind(out, bci),
+                aes(x = time, ymin = lwr.ci, ymax = upr.ci), 
+                fill = 'red', alpha = .4) +
+  theme_classic()
   
 }
 
