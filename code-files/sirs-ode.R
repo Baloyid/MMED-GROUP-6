@@ -8,12 +8,12 @@ library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
 
 # currently loading datasets from n = ?
-current_n = 'p5000'
+current_n = 'p4000'
 
 
 # Load data from ABM ------------------------------------------------------
 
-data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", full.names = TRUE)
+data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", full.names = TRUE, recursive = T)
 
 #' Function to read and process a single CSV file
 #'
@@ -29,7 +29,6 @@ process_file <- function(file) {
 }
 
 abm_data <- map_dfr(data_files, process_file)
-
 
 # Functions --------------------------------------------------------------
 
@@ -118,6 +117,12 @@ nllikelihood <- function(par = par, obsDat=myDat, abm_data = abm_data) {
     as.data.frame() |>
     mutate(P = I / (S + I + R))
   
+  # Ensure that simDat$P contains valid probabilities
+  if(any(is.na(simDat$P) | simDat$P < 0 | simDat$P > 1)) {
+    return(1000000)  # Return a large value to penalize invalid parameter sets
+  }
+  
+    
   nlls <- -dbinom(obsDat$numPos, obsDat$numSamp, prob = simDat$P, log = T)
   return(sum(nlls))
 }
@@ -142,11 +147,13 @@ for (i in 1:length(data_files)) {
   myDat = sampleEpidemic(filtered_data)
   
   # optimizing 
-  optim.vals <- optim(par = c(c = 3, p = .4, gamma = .05, xi = .1)
+  optim.vals <- optim(par = c(c = 3, p = .3, gamma = .05, xi = .2)
                       , nllikelihood
                       , obsDat = myDat
                       , abm_data = filtered_data
-                      , control = list(trace = 1, maxit = 1000)
+                      # , lower = c(1, rep(0, 2), -1)
+                      # , upper = c(5, rep(1, 3))
+                      , control = list(trace = 0, maxit = 1000)
                       , method = "Nelder-Mead")
   
   pars = optim.vals$par |> data.frame() |> t()
@@ -156,22 +163,31 @@ for (i in 1:length(data_files)) {
   
 }
 
-
+# creating the datasets showing population size and neighbourhood type
+pop_params = abm_data |>
+  select(file) |>
+  distinct() |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  select(-file)
+  
 
 # Plotting the parameter values 
-fullpar2 = fullpar |>
+fullpar2 = cbind(fullpar, pop_params) |>
   data.frame() |>
-  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection')) |>
-  pivot_longer(everything())
+  setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection', 'Population size', 'Neighbourhood')) |>
+  pivot_longer(-c(`Population size`, `Neighbourhood`))
 
 truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
-                      value = c(NA, .35, 1/13, 1/7))
+                      value = c(NA, .4, 1/7, 1/14))
 
 ggplot(fullpar2) +
-  geom_density(aes(x = value)) + 
+  geom_density(aes(x = value, col = Neighbourhood)) + 
   facet_wrap(~name, scales = "free") +
   geom_vline(data = truepars, aes(xintercept = value, group = name), col = 'blue', size = 1) + 
-  labs(title = 'Parameter values for N = 500', x = 'Parameter', y = 'Density') +
+  labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
   theme_bw(base_line_size = 0) +
   theme(panel.spacing = unit(1, "lines"))
 
