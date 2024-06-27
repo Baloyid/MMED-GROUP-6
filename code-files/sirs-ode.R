@@ -152,7 +152,6 @@ nllikelihood <- function(par = par, obsDat=myDat, abm_data = abm_data) {
     return(1000000)  # Return a large value to penalize invalid parameter sets
   }
   
-    
   nlls <- -dbinom(obsDat$numPos, obsDat$numSamp, prob = simDat$P, log = T)
   return(sum(nlls))
 }
@@ -181,10 +180,10 @@ for (i in 1:length(data_files)) {
                       , nllikelihood
                       , obsDat = myDat
                       , abm_data = filtered_data
-                      # , lower = c(1, rep(0, 2), -1)
-                      # , upper = c(5, rep(1, 3))
+                      , lower = c(1, rep(0, 3))
+                      , upper = c(5, rep(1, 3))
                       , control = list(trace = 0, maxit = 1000)
-                      , method = "Nelder-Mead")
+                      , method = "L-BFGS-B")
   
   pars = optim.vals$par |> data.frame() |> t()
   
@@ -223,6 +222,7 @@ fullpar2 |>
                    y = `Probability of \ninfection`,
                    fill = Neighbourhood)) + 
   geom_hline(aes(yintercept = .4), col = 'blue') + 
+  facet_wrap(~Neighbourhood, scales = 'free') +
   labs(title = 'Probability of infection over population size ranges',
        x = 'Population size', y = 'Infection probability',
        fill = 'Neighbourhood: ') +
@@ -254,6 +254,7 @@ fullpar2 |> ggplot() +
   ungroup() %>%
   ggplot(aes(x = median, y = factor(`Population size`), col = factor(Neighbourhood))) +
   geom_point(size = 3, position = position_dodge(width = 0.7)) + 
+   facet_wrap(~Neighbourhood, scales = 'free') +
   geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, position = position_dodge(width = 0.7)) +
   geom_vline(xintercept = 0.4, linetype = "dashed", color = "blue") +
   theme_classic() +
@@ -295,7 +296,7 @@ ggplot(fullpar2 |> filter(name != 'Contact rate')) +
 # Plotting one occurence
 plts = list()
 
-for (i in 151:length(data_files)) {
+for (i in 1:length(data_files)) {
   
   # using only the chosen simulation
   filtered_data = abm_data |> 
@@ -324,12 +325,17 @@ for (i in 151:length(data_files)) {
                )
   )
   
-  plts[[i-150]] = ggplot(filtered_data, aes(x = time)) + 
-    geom_point(aes(y = I), cex = .3) + 
+  # storing the simulated data
+  if (i == 1) simdatfull = cbind(out, bci) |> mutate(file = data_files[i])
+  else simdatfull = rbind(simdatfull, cbind(out, bci) |> mutate(file = data_files[i]))
+  
+  
+  plts[[i]] = ggplot(filtered_data, aes(x = time)) +
+    geom_point(aes(y = I), cex = .3) +
     geom_line(data = cbind(out, bci),
               aes(x = time, y = I), col = 'red') +
     geom_ribbon(data = cbind(out, bci),
-                aes(x = time, ymin = lwr.ci, ymax = upr.ci), 
+                aes(x = time, ymin = lwr.ci, ymax = upr.ci),
                 fill = 'red', alpha = .2) +
   theme_classic()
   
@@ -340,10 +346,42 @@ do.call(grid.arrange, plts)
 fullpar = fullpar2 |>
   data.frame(check.names = F)
 rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, paste0('output/sirs-ode/', current_n, '-pars.csv'), row.names = F)
+write.csv(fullpar, paste0('output/sirs-ode/', 'full-pars.csv'), row.names = F)
 
+# plotting combined datasets for given neighbourhood and given pop size
+simdatfull2 = simdatfull |>
+  mutate(
+         pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+         nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+         ) |>
+  select(-file)
 
+simdatfull3 = simdatfull2 |>
+  group_by(pop, nb, time) |>
+  summarise(
+    across(
+      .cols = everything(),
+      .fns = mean
+    )
+  )
 
+fd_temp = abm_data |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  select(-file) |>
+  merge(simdatfull3 |> select(pop, nb, time, est, lwr.ci, upr.ci),
+        by = c('time', 'pop', 'nb'), all.x = T) 
+
+ggplot() + 
+  geom_point(data = fd_temp, aes(x = time, y = I), cex = .7) +
+  geom_line(data = simdatfull3, aes(x = time, y = I), col = 'red') +
+  geom_ribbon(data = simdatfull3, aes(x = time, ymin = lwr.ci, ymax = upr.ci),
+              fill = 'red', alpha = .2) +
+  facet_wrap(nb ~ pop, scales = 'free', ncol = 6) + 
+  labs(x = 'Time', y = 'Number of infected individuals') +
+  ggtitle('Calibration results for SIRS-ODE models')
 
 
 

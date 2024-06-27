@@ -9,7 +9,7 @@ p_load(dplyr, ggplot2, tidyr, deSolve, stringr)
 # Load data from ABM ------------------------------------------------------
 
 data_files <- list.files(path = paste0('data'), pattern = "*.csv", full.names = TRUE, recursive = T)
-data_files = data_files[101:120]
+
 #' Function to read and process a single CSV file
 #'
 #' @param file the file path and name and extension e.g. 'data/p500/sim.csv'
@@ -64,7 +64,6 @@ sirs_chainbinomial <- function(time, state, parameters) {
 }
 
 
-
 #' The function for generating data given time points
 #'
 #' @param time gives the time we want our simulation to run from
@@ -73,10 +72,9 @@ sirs_chainbinomial <- function(time, state, parameters) {
 #'
 #' @return dataset with time series of S, I, R
 solve_chainbinomial <- function(time, initial_state, parameters) {
+  
   states = as.list(initial_state)
   N <- last(states$S) + last(states$I) + last(states$R)
-  
-  
   
   prob_infect = 1 - (1 - parameters[4]*(last(states$I)/N)*parameters[1])**parameters[4] |> as.numeric()
   prob_recover = parameters[2] |> as.numeric()
@@ -146,6 +144,11 @@ nllikelihood <- function(parms, obsDat=myDat, abm_data = abm_data) {
                                parameters = parms) |>
     mutate(P = I / (S + I + R))
   
+  # Ensure that simDat$P contains valid probabilities
+  if(any(is.na(simDat$P) | simDat$P < 0 | simDat$P > 1)) {
+    return(1000000)  # Return a large value to penalize invalid parameter sets
+  }
+  
   nlls <- -dbinom(obsDat$numPos, round(obsDat$numSamp, 0), prob = simDat$P, log = T)
   return(sum(nlls))
 }
@@ -175,8 +178,11 @@ for (i in 1:length(data_files)) {
                       , nllikelihood
                       , obsDat = myDat
                       , abm_data = filtered_data
+                      # , lower = c(rep(0, 3), 1)
+                      # , upper = c(rep(1, 3), 5)
                       , control = list(trace = 0, maxit = 1000)
                       , method = "Nelder-Mead")
+  
   
   pars = optim.vals$par |> data.frame() |> t()
   
@@ -184,7 +190,6 @@ for (i in 1:length(data_files)) {
   else fullpar = rbind(fullpar, pars)
   
 }
-
 
 # creating the datasets showing population size and neighbourhood type
 pop_params = abm_data |>
@@ -202,22 +207,26 @@ fullpar2 = cbind(fullpar, pop_params) |>
   data.frame() |>
   setNames(c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection', 'Population size', 'Neighbourhood'))
 fullpar2 = fullpar2 |>
-  mutate(`Probability of \ninfection` = ifelse(`Probability of \ninfection` < 0, 0, `Probability of \ninfection`))
+  mutate(`Probability of 
+          infection` = ifelse(`Probability of 
+          infection` < 0, 0, `Probability of 
+          infection`))
 
 fullpar2 |>
   pivot_longer(-c(`Population size`, `Neighbourhood`))
 
 # boxplot
-fullpar2 |> ggplot() + 
-  geom_boxplot(aes(x = as.factor(`Population size`),
-                   y = `Probability of \ninfection`,
-                   fill = Neighbourhood)) + 
-  geom_hline(aes(yintercept = .4), col = 'blue') + 
-  labs(title = 'Probability of infection over population size ranges',
-       x = 'Population size', y = 'Infection probability',
-       fill = 'Neighbourhood type: ') +
-  theme_bw(base_line_size = 0) + 
-  theme(legend.position = 'bottom')
+(p1 = fullpar2 |> ggplot() + 
+    geom_boxplot(aes(x = as.factor(`Population size`),
+                     y = `Probability of \ninfection`,
+                     fill = Neighbourhood)) + 
+    geom_hline(aes(yintercept = .4), col = 'blue') + 
+    facet_wrap(~Neighbourhood, scales = 'free') +
+    labs(title = 'Probability of infection over population size ranges',
+         x = 'Population size', y = 'Infection probability',
+         fill = 'Neighbourhood: ') +
+    theme_bw(base_line_size = 0) + 
+    theme(legend.position = 'bottom'))
 
 # density
 fullpar2 |> ggplot() + 
@@ -225,7 +234,7 @@ fullpar2 |> ggplot() +
     x = `Probability of \ninfection`,
     fill = as.factor(`Population size`)),
     alpha = .2) + 
-  facet_wrap(~Neighbourhood) +
+  facet_wrap(~Neighbourhood, scales = 'free_y') +
   geom_vline(aes(xintercept = .4), col = 'blue') + 
   labs(title = 'Probability of infection over population size ranges',
        x = 'Population size', y = 'Infection probability',
@@ -234,9 +243,30 @@ fullpar2 |> ggplot() +
   theme(legend.position = 'bottom')
 
 
+# The confidence intervals ----------------------------
 
+(p2 = fullpar2 %>%
+   group_by(`Population size`, Neighbourhood) %>%
+   summarise(
+     calculate_summary_stats(`Probability of \ninfection`)
+   ) %>%
+   ungroup() %>%
+   ggplot(aes(x = median, y = factor(`Population size`), col = factor(Neighbourhood))) +
+   geom_point(size = 3, position = position_dodge(width = 0.7)) + 
+   facet_wrap(~Neighbourhood, scales = 'free') +
+   geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, position = position_dodge(width = 0.7)) +
+   geom_vline(xintercept = 0.4, linetype = "dashed", color = "blue") +
+   theme_classic() +
+   labs(
+     x = "Median and 95% CI\nfor the probability of infection",
+     y = "Population size",
+     col = 'Neighbourhood type: ',
+     title = "Coverage for the probability of infection parameter"
+   ) +
+   theme(legend.title = element_blank(),
+         legend.position = 'bottom'))
 
-
+grid.arrange(p1, p2, nrow = 1)
 
 
 
@@ -291,23 +321,65 @@ for (i in 1:length(data_files)) {
                )
   )
   
+  # storing the simulatred data
+  if (i == 1) simdatfull = cbind(out, bci) |> mutate(file = data_files[i])
+  else simdatfull = rbind(simdatfull, cbind(out, bci) |> mutate(file = data_files[i]))
   
-  plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
-    geom_point(aes(y = I), cex = .3) + 
-    geom_line(data = cbind(out, bci),
-              aes(x = time, y = I), col = 'red') +
-    geom_ribbon(data = cbind(out, bci),
-                aes(x = time, ymin = lwr.ci, ymax = upr.ci), 
-                fill = 'red', alpha = .4) +
-  theme_classic()
+  
+  # plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
+  #   geom_point(aes(y = I), cex = .3) + 
+  #   geom_line(data = cbind(out, bci),
+  #             aes(x = time, y = I), col = 'red') +
+  #   geom_ribbon(data = cbind(out, bci),
+  #               aes(x = time, ymin = lwr.ci, ymax = upr.ci), 
+  #               fill = 'red', alpha = .4) +
+  # theme_classic()
   
 }
 
 do.call(grid.arrange, plts)
 
 # storing the results of the parameters
-fullpar = fullpar |>
+fullpar = fullpar2 |>
   data.frame()
 rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, paste0('output/sirs-chain-binomial/', current_n, '-pars.csv'), row.names = F)
+write.csv(fullpar, paste0('output/sirs-chain-binomial/', 'full-pars.csv'), row.names = F)
+
+
+
+# plotting combined datasets for given neighbourhood and given pop size
+simdatfull2 = simdatfull |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  select(-file)
+
+simdatfull3 = simdatfull2 |>
+  group_by(pop, nb, time) |>
+  summarise(
+    across(
+      .cols = everything(),
+      .fns = mean
+    )
+  ) |>
+  ungroup()
+
+fd_temp = abm_data |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  select(-file) |>
+  merge(simdatfull3 |> select(pop, nb, time, est, lwr.ci, upr.ci),
+        by = c('time', 'pop', 'nb'), all.x = T) 
+
+ggplot() + 
+  geom_point(data = fd_temp, aes(x = time, y = I), cex = .7) +
+  geom_line(data = simdatfull3, aes(x = time, y = I), col = 'red') +
+  geom_ribbon(data = simdatfull3, aes(x = time, ymin = lwr.ci, ymax = upr.ci),
+              fill = 'red', alpha = .2) +
+  facet_wrap(nb ~ pop, scales = 'free', ncol = 6) + 
+  labs(x = 'Time', y = 'Number of infected individuals') +
+  ggtitle('Calibration results for SIRS-Chain Binomial models')
 
