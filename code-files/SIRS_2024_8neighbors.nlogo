@@ -144,7 +144,7 @@ Population
 Population
 0
 5000
-1000.0
+500.0
 100
 1
 NIL
@@ -159,7 +159,7 @@ Immunity_days
 Immunity_days
 0
 1000
-10.0
+14.0
 1
 1
 NIL
@@ -174,7 +174,7 @@ Beta
 Beta
 0
 100
-30.0
+4.0
 1
 1
 %
@@ -189,7 +189,7 @@ Infectious_period
 Infectious_period
 0
 1000
-15.0
+7.0
 1
 1
 NIL
@@ -250,7 +250,7 @@ stop_day
 stop_day
 0
 3650
-3650.0
+730.0
 1
 1
 days
