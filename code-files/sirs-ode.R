@@ -7,10 +7,6 @@
 library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr, broom)
 
-# currently loading datasets from n = ?
-current_n = 'p4000'
-
-
 # Load data from ABM ------------------------------------------------------
 
 data_files <- list.files(path = paste0('data'), pattern = "*.csv", full.names = TRUE, recursive = T)
@@ -36,6 +32,35 @@ process_file <- function(file) {
 abm_data <- map_dfr(data_files, process_file)
 
 # Functions --------------------------------------------------------------
+
+#' Function for computing binomial confidence intervals, and point estimates
+#'
+#' @param proportions the binomial proportions
+#'
+#' @return a dataframe with mean, median and confidence intervals
+calculate_summary_stats <- function(proportions) {
+  
+  mean_proportion <- mean(proportions)
+  median_proportion <- median(proportions)
+  
+  sem <- sd(proportions) / sqrt(length(proportions))
+  t_value <- qt(0.975, df = length(proportions) - 1)
+  margin_of_error <- t_value * sem
+  
+  # Calculate the confidence interval
+  ci_lower <- mean_proportion - margin_of_error
+  ci_upper <- mean_proportion + margin_of_error
+  
+  # Create a data frame with the results
+  results <- data.frame(
+    mean = mean_proportion,
+    median = median_proportion,
+    conf.low = ci_lower,
+    conf.high = ci_upper
+  )
+  
+  return(results)
+}
 
 
 #' Define the SIRS model with the beta parametrization
@@ -193,16 +218,16 @@ fullpar2 |>
   pivot_longer(-c(`Population size`, `Neighbourhood`))
 
 # boxplot
-fullpar2 |> ggplot() + 
+(p1 = fullpar2 |> ggplot() + 
   geom_boxplot(aes(x = as.factor(`Population size`),
                    y = `Probability of \ninfection`,
                    fill = Neighbourhood)) + 
   geom_hline(aes(yintercept = .4), col = 'blue') + 
   labs(title = 'Probability of infection over population size ranges',
        x = 'Population size', y = 'Infection probability',
-       fill = 'Neighbourhood type: ') +
+       fill = 'Neighbourhood: ') +
   theme_bw(base_line_size = 0) + 
-  theme(legend.position = 'bottom')
+  theme(legend.position = 'bottom'))
 
 # density
 fullpar2 |> ggplot() + 
@@ -210,7 +235,7 @@ fullpar2 |> ggplot() +
                    x = `Probability of \ninfection`,
                    fill = as.factor(`Population size`)),
                alpha = .2) + 
-  facet_wrap(~Neighbourhood) +
+  facet_wrap(~Neighbourhood, scales = 'free_y') +
   geom_vline(aes(xintercept = .4), col = 'blue') + 
   labs(title = 'Probability of infection over population size ranges',
        x = 'Population size', y = 'Infection probability',
@@ -219,17 +244,29 @@ fullpar2 |> ggplot() +
   theme(legend.position = 'bottom')
 
 
-# linear model to get the confidence intervals ----------------------------
+# The confidence intervals ----------------------------
 
-m1 = glm(`Probability of \ninfection` ~ `Population size` - 1,
-    data = fullpar2 |> mutate(`Population size` = as.factor(`Population size`)),
-    family = binomial(link = 'logit'))
-tidy(m1, conf.int = T, exponentiate = T)
+(p2 = fullpar2 %>%
+  group_by(`Population size`, Neighbourhood) %>%
+  summarise(
+    calculate_summary_stats(`Probability of \ninfection`)
+  ) %>%
+  ungroup() %>%
+  ggplot(aes(x = median, y = factor(`Population size`), col = factor(Neighbourhood))) +
+  geom_point(size = 3, position = position_dodge(width = 0.7)) + 
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, position = position_dodge(width = 0.7)) +
+  geom_vline(xintercept = 0.4, linetype = "dashed", color = "blue") +
+  theme_classic() +
+  labs(
+    x = "Median and 95% CI\nfor the probability of infection",
+    y = "Population size",
+    col = 'Neighbourhood type: ',
+    title = "Coverage for the probability of infection parameter"
+  ) +
+  theme(legend.title = element_blank(),
+        legend.position = 'bottom'))
 
-m2 = glm(`Probability of \ninfection` ~ Neighbourhood - 1,
-         data = fullpar2 |> mutate(`Population size` = as.factor(`Population size`)),
-         family = binomial(link = 'logit'))
-tidy(m2, conf.int = T, exponentiate = T)
+grid.arrange(p1, p2, nrow = 1)
 
 
 truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
@@ -287,7 +324,7 @@ for (i in 151:length(data_files)) {
                )
   )
   
-  plts[[i]] = ggplot(filtered_data, aes(x = time)) + 
+  plts[[i-150]] = ggplot(filtered_data, aes(x = time)) + 
     geom_point(aes(y = I), cex = .3) + 
     geom_line(data = cbind(out, bci),
               aes(x = time, y = I), col = 'red') +
