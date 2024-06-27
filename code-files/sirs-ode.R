@@ -8,7 +8,7 @@ library(pacman)
 p_load(dplyr, ggplot2, tidyr, deSolve, stringr, purrr)
 
 # currently loading datasets from n = ?
-current_n = 'p4000'
+current_n = 'p2000'
 
 
 # Load data from ABM ------------------------------------------------------
@@ -21,6 +21,7 @@ data_files <- list.files(path = paste0('data/', current_n), pattern = "*.csv", f
 #'
 #' @return a single file read
 process_file <- function(file) {
+  print(file)
   read.csv(file) |>
     select(time, S = Susceptible, I = Infected.infectious, R = Recovered) |>
     mutate(P = I / (S + I + R),
@@ -183,14 +184,24 @@ fullpar2 = cbind(fullpar, pop_params) |>
 truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
                       value = c(NA, .4, 1/7, 1/14))
 
-ggplot(fullpar2) +
+ggplot(fullpar2 |> filter(name != 'Contact rate')) +
   geom_density(aes(x = value, col = Neighbourhood)) + 
   facet_wrap(~name, scales = "free") +
-  geom_vline(data = truepars, aes(xintercept = value, group = name), col = 'blue', size = 1) + 
+  geom_vline(data = truepars |> filter(name != 'Contact rate'),
+             aes(xintercept = value, group = name), col = 'blue', size = 1) + 
   labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
   theme_bw(base_line_size = 0) +
   theme(panel.spacing = unit(1, "lines"))
 
+# a boxplot
+ggplot(fullpar2 |> filter(name != 'Contact rate')) +
+  geom_boxplot(aes(x = name, y = value, col = Neighbourhood)) + 
+  facet_wrap(~name, scales = "free") +
+  geom_point(data = truepars |> filter(name != 'Contact rate'),
+             aes(y = value, x = name), col = 'black', size = 3) + 
+  labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
+  theme_bw(base_line_size = 0) +
+  theme(panel.spacing = unit(1, "lines"))
 
 
 # Plotting one occurence
