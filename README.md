@@ -8,7 +8,7 @@ Facilitator: Slimane BenMiled
 
 ---
 
-![SIRS Model Diagram](readme.png)
+![SIRS Model Diagram](SIRSModel.png)
 
 ---
 
