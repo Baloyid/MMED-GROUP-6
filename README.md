@@ -21,9 +21,9 @@ The repository contains the code and work for group 6. The repository is structu
    
 3. The **outputs** folder contains the outputs from running the SIRS models (ODE & ChainBinomial). The output has seperate folders for the different models used. The csv files labelled using similar method of `pX`.
 
-4. The img folder contains images that were generated while running the analysis, as well as model diagrams.
+4. The **img** folder contains images that were generated while running the analysis, as well as model diagrams.
 
-5. The globalenv folders contain a snapshot rdata for a clean run of the ODE and chainbinomial runs.
+5. The **globalenv** folders contain a snapshot rdata for a clean run of the ODE and chainbinomial runs. Loading this into a fresh R session gives you all the data that was produced when running the optimizations.
 
 ---
 
