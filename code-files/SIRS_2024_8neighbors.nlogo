@@ -14,7 +14,7 @@ to setup
   ]
   ask n-of initial-infections turtles ; infected, here started with one
   [ set color red
-    set infectious-period infectious_period ; infectious_period adjust with the slider
+    set infectious-period random-exponential infectious_period ; infectious_period adjust with the slider
   ]
   reset-ticks
 end
@@ -24,41 +24,50 @@ to go
  if ticks >= stop_day [stop] ; stop simulation at day xxx.
  if not any? turtles with [color = red or color = blue] [stop] ; if all turtles are green, stop
 
-  ask turtles
-    [
-  lt random 360      ; any directions
-    fd 10            ; one step forward
-  ]
+  move
+  susceptible
   infected-infectious
   recover
-  susceptible
   tick
 
 end
 
-to infected-infectious
-
-    ask turtles with [color =  red]
-   [ if random 100 <= Beta ; infection probablity from one contact
+; the code for moving an agent
+to move
+  ask turtles
     [
-        ;ask other (turtles-on neighbors4) with [color = green] ; 4 neighbors
-        ask other (turtles-on neighbors) with [color = green] ; 8 neighbors
-        ;ask one-of (turtles-on neighbors) with [color = green]
-  ;ask turtles-here with [color =  green]
-      [
-        set color red
-        set infectious-period infectious_period
-      ]
+  lt random 360      ; any directions
+    fd random 10            ; one step forward
+]
+end
+
+
+to infected-infectious
+  ; Ask healthy turtles within the neighborhood
+  ask turtles with [color = green] [
+    ; Find sick turtles in the neighborhood
+     ; Compare it to the Beta of a sick turtle within the neighborhood
+     ask (turtles-on neighbors) with [color = red] [
+       let rand random 100
+       if rand <= Beta [
+          ; Infect the healthy turtle
+          ask myself [
+            set color red
+            set infectious-period random-exponential infectious_period
+          ]
+        ]
     ]
   ]
 end
+
+
 
 to recover
   ask turtles with [color = red]
   [
     ifelse infectious-period <= 0
     [set color blue
-    set immunity-period immunity_days]
+    set immunity-period random-exponential immunity_days]
     [set infectious-period infectious-period - 1
     ]
   ]
@@ -144,7 +153,7 @@ Population
 Population
 0
 5000
-500.0
+3000.0
 100
 1
 NIL
@@ -159,7 +168,7 @@ Immunity_days
 Immunity_days
 0
 1000
-14.0
+64.0
 1
 1
 NIL
@@ -189,7 +198,7 @@ Infectious_period
 Infectious_period
 0
 1000
-7.0
+8.0
 1
 1
 NIL
@@ -224,7 +233,7 @@ Initial-infections
 Initial-infections
 0
 100
-10.0
+60.0
 1
 1
 NIL
@@ -249,8 +258,8 @@ SLIDER
 stop_day
 stop_day
 0
-3650
-730.0
+730
+3650.0
 1
 1
 days
