@@ -1,6 +1,10 @@
 
 
 
+# This is a playground to test out how the various probability of  --------
+# infection incorporating the infected play out
+
+
 ii =  seq(from = 100, to = 900, by = 50)
 c = 3
 prob_infect = .3

@@ -36,7 +36,7 @@ abm_data = abm_data |>
     pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
     nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
   ) |>
-  filter(pop == 2000 & nb == 'no-neighbours') |>
+  # filter(pop == 2000 & nb == 'no-neighbours') |>
   select(-pop, -nb)
 
 # Functions --------------------------------------------------------------
@@ -51,9 +51,9 @@ calculate_summary_stats <- function(proportions) {
   mean_proportion <- mean(proportions)
   median_proportion <- median(proportions)
   
-  sem <- sd(proportions) / sqrt(length(proportions))
-  t_value <- qt(0.975, df = length(proportions) - 1)
-  margin_of_error <- t_value * sem
+  se <- sd(proportions) / sqrt(length(proportions))
+  crit <- qt(0.975, df = length(proportions) - 1)
+  margin_of_error <- crit * se
   
   # Calculate the confidence interval
   ci_lower <- mean_proportion - margin_of_error
@@ -155,7 +155,7 @@ nllikelihood <- function(par = par, obsDat=myDat, abm_data = abm_data) {
     as.data.frame() |>
     mutate(P = I / (S + I + R))
   
-  # Ensure that simDat$P contains valid probabilities
+  # Ensure that simDat$P contains valid probabilities, non valid are hugely penalized
   if(any(is.na(simDat$P) | simDat$P < 0 | simDat$P > 1)) {
     return(1000000)  # Return a large value to penalize invalid parameter sets
   }
@@ -172,7 +172,7 @@ nllikelihood <- function(par = par, obsDat=myDat, abm_data = abm_data) {
 
 # Fitting the model by MLE ------------------------------------------------
 
-data_files = abm_data |> pull(file) |> unique()
+# data_files = abm_data |> pull(file) |> unique()
 for (i in 1:length(data_files)) {
   message('Running simulation: ', i, ' out of : ', length(data_files))
   
@@ -184,7 +184,7 @@ for (i in 1:length(data_files)) {
   # sampling from the ABM: Here we choose to use all the abm data
   myDat = sampleEpidemic(filtered_data)
   
-  # optimizing 
+  # optimizing to get most appropriate parameters 
   optim.vals <- optim(par = c(c = 3, p = .3, gamma = .05, xi = .2)
                       , nllikelihood
                       , obsDat = myDat
@@ -193,6 +193,7 @@ for (i in 1:length(data_files)) {
                       , upper = c(5, rep(1, 3))
                       , control = list(trace = 0, maxit = 1000)
                       , method = "L-BFGS-B")
+
   
   pars = optim.vals$par |> data.frame() |> t()
   
@@ -201,7 +202,18 @@ for (i in 1:length(data_files)) {
   
 }
 
+# Saving results back in memory -------------------------------------------
+
+fullpar = fullpar2 |>
+  data.frame(check.names = F)
+rownames(fullpar) = 1:nrow(fullpar)
+write.csv(fullpar, paste0('output/sirs-ode/', 'full-pars.csv'), row.names = F)
+
+
+# Visualizations ----------------------------------------------------------
+
 # creating the datasets showing population size and neighbourhood type
+# this adds the population and neighbourhood structure to the parameters dataframe
 pop_params = abm_data |>
   select(file) |>
   distinct() |>
@@ -222,10 +234,8 @@ infection` = ifelse(`Probability of
 infection` < 0, 0, `Probability of 
 infection`))
 
-fullpar2 |>
-  pivot_longer(-c(`Population size`, `Neighbourhood`))
 
-# boxplot
+# boxplot of results
 (p1 = fullpar2 |> ggplot() + 
   geom_boxplot(aes(x = as.factor(`Population size`),
                    y = `Probability of \ninfection`,
@@ -238,22 +248,9 @@ fullpar2 |>
   theme_bw(base_line_size = 0) + 
   theme(legend.position = 'bottom'))
 
-# density
-fullpar2 |> ggplot() + 
-  geom_density(aes(#x = as.factor(`Population size`),
-                   x = `Probability of \ninfection`,
-                   fill = as.factor(`Population size`)),
-               alpha = .2) + 
-  facet_wrap(~Neighbourhood, scales = 'free_y') +
-  geom_vline(aes(xintercept = .4), col = 'blue') + 
-  labs(title = 'Probability of infection over population size ranges',
-       x = 'Population size', y = 'Infection probability',
-       fill = 'Neighbourhood type: ') +
-  theme_bw(base_line_size = 0) + 
-  theme(legend.position = 'bottom')
 
 
-# The confidence intervals ----------------------------
+# The confidence intervals plot ----------------------------
 
 (p2 = fullpar2 %>%
   group_by(`Population size`, Neighbourhood) %>%
@@ -278,31 +275,34 @@ fullpar2 |> ggplot() +
 
 grid.arrange(p1, p2, nrow = 1)
 
+# true parameters used in ABM simulation
+# truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
+#                       value = c(NA, .4, 1/7, 1/14))
+# 
+# ggplot(fullpar2 |> filter(name != 'Contact rate')) +
+#   geom_density(aes(x = value, col = Neighbourhood)) + 
+#   facet_wrap(~name, scales = "free", nrow = 2) +
+#   geom_vline(data = truepars |> filter(name != 'Contact rate'),
+#              aes(xintercept = value, group = name), col = 'blue', size = 1) + 
+#   labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
+#   theme_bw(base_line_size = 0) +
+#   theme(panel.spacing = unit(1, "lines"))
+# 
+# # a boxplot
+# ggplot(fullpar2 |> filter(name != 'Contact rate')) +
+#   geom_boxplot(aes(x = name, y = value, col = Neighbourhood)) + 
+#   facet_wrap(~name, scales = "free", nrow=2) +
+#   geom_point(data = truepars |> filter(name != 'Contact rate'),
+#              aes(y = value, x = name), col = 'black', size = 3) + 
+#   labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
+#   theme_bw(base_line_size = 0) +
+#   theme(panel.spacing = unit(1, "lines"))
 
-truepars = data.frame(name = c('Contact rate', 'Probability of \ninfection', 'Rate of \nrecovery', 'Rate of \nre-infection'),
-                      value = c(NA, .4, 1/7, 1/14))
-
-ggplot(fullpar2 |> filter(name != 'Contact rate')) +
-  geom_density(aes(x = value, col = Neighbourhood)) + 
-  facet_wrap(~name, scales = "free", nrow = 2) +
-  geom_vline(data = truepars |> filter(name != 'Contact rate'),
-             aes(xintercept = value, group = name), col = 'blue', size = 1) + 
-  labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
-  theme_bw(base_line_size = 0) +
-  theme(panel.spacing = unit(1, "lines"))
-
-# a boxplot
-ggplot(fullpar2 |> filter(name != 'Contact rate')) +
-  geom_boxplot(aes(x = name, y = value, col = Neighbourhood)) + 
-  facet_wrap(~name, scales = "free", nrow=2) +
-  geom_point(data = truepars |> filter(name != 'Contact rate'),
-             aes(y = value, x = name), col = 'black', size = 3) + 
-  labs(title = 'Parameter values for N = 4000', x = 'Parameter', y = 'Density') +
-  theme_bw(base_line_size = 0) +
-  theme(panel.spacing = unit(1, "lines"))
 
 
-# Plotting one occurence
+# Plots for transmission dynamics: I(t) -----------------------------------
+
+# a list to hold all plots
 plts = list()
 
 for (i in 1:length(data_files)) {
@@ -334,11 +334,12 @@ for (i in 1:length(data_files)) {
                    )
   )
   
-  # using actual parameters
+  # using actual parameters, 
+  # the c parameter distribution was obtained in a small simulation done outside this main script, as c is a nuisance parameter
   actual.out = ode(y = (filtered_data)[1, 1:3] |> unlist(),
                    times = 1:nrow(filtered_data),
-                   func = sirs_model,
-                   parms = c(beta=.11, gamma=0.14285714, xi=0.7142857)) |>
+                   func = sirs_model_cp,
+                   parms = c(c = runif(1, min = 0.13787, max = 0.18683), p = 0.4, gamma = 1/7, xi = 1/14)) |>
     data.frame() |>
     mutate(time = row_number(),
            N = S + I + R)
@@ -370,11 +371,11 @@ for (i in 1:length(data_files)) {
                 aes(x = time, ymin = lwr.ci, ymax = upr.ci),
                 fill = 'red', alpha = .2) +
     
-    # geom_line(data = cbind(actual.out, bci.actual),
-    #           aes(x = time, y = I), col = 'green') +
-    # geom_ribbon(data = cbind(actual.out, bci.actual),
-    #             aes(x = time, ymin = lwr.ci, ymax = upr.ci),
-    #             fill = 'green', alpha = .2) +
+    geom_line(data = cbind(actual.out, bci.actual),
+              aes(x = time, y = I), col = 'green') +
+    geom_ribbon(data = cbind(actual.out, bci.actual),
+                aes(x = time, ymin = lwr.ci, ymax = upr.ci),
+                fill = 'green', alpha = .2) +
 
     labs(x = 'Time (t)', y = 'I(t)') +
   theme_classic()
@@ -384,17 +385,10 @@ for (i in 1:length(data_files)) {
 p0 = do.call(grid.arrange, plts)
 
 
-# Saving results back in memory -------------------------------------------
-
-fullpar = fullpar2 |>
-  data.frame(check.names = F)
-rownames(fullpar) = 1:nrow(fullpar)
-write.csv(fullpar, paste0('output/sirs-ode/', 'full-pars.csv'), row.names = F)
-
-
-# Miscellaneous plots -----------------------------------------------------
 
 # plotting combined datasets for given neighbourhood and given pop size
+
+# dataset using calibrated parameters
 simdatfull2 = simdatfull |>
   mutate(
          pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
@@ -411,13 +405,34 @@ simdatfull3 = simdatfull2 |>
     )
   )
 
+# data using actual parameters
+full.actual2 = full.actual |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  select(-file)
+
+full.actual3 = full.actual2 |>
+  group_by(pop, nb, time) |>
+  summarise(
+    across(
+      .cols = everything(),
+      .fns = mean
+    )
+  )
+
+
+
 fd_temp = abm_data |>
   mutate(
     pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
     nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
   ) |>
   select(-file) |>
-  merge(simdatfull3 |> select(pop, nb, time, est, lwr.ci, upr.ci),
+  merge(simdatfull3 |> select(pop, nb, time, est, lwr.ci, upr.ci) |> mutate(type = 'calibrated'),
+        by = c('time', 'pop', 'nb'), all.x = T) |>
+  merge(full.actual3 |> select(pop, nb, time, est, lwr.ci, upr.ci) |> mutate(type = 'Actual'),
         by = c('time', 'pop', 'nb'), all.x = T) 
 
 
@@ -427,8 +442,14 @@ p1=ggplot() +
   geom_line(data = simdatfull3, aes(x = time, y = I), col = 'red') +
   geom_ribbon(data = simdatfull3, aes(x = time, ymin = lwr.ci, ymax = upr.ci),
               fill = 'red', alpha = .2) +
+  
+  geom_line(data = full.actual3, aes(x = time, y = I), col = 'green') +
+  geom_ribbon(data = full.actual3, aes(x = time, ymin = lwr.ci, ymax = upr.ci),
+              fill = 'green', alpha = .2) +
+  
   # facet_wrap(nb ~ pop, scales = 'free', ncol = 6) + 
-  labs(x = 'Time', y = 'Number of infected individuals') +
+  labs(x = 'Time', y = 'Number of infected individuals',
+       subtitle = 'The green curves represent SIRS models fitted with actual parameters\nThe red curves represent SIRS models fitted with calibrated (MLE) parameters') +
   ggtitle('Calibration results for SIRS-ODE models') + 
   theme_classic()
 
@@ -437,6 +458,6 @@ p1=ggplot() +
 
 
 small_plots <- wrap_plots(plts, ncol = 3)  # Adjust ncol to arrange plots as desired
-layout <- (small_plots | p1) + plot_layout(widths = c(1, 1))  # Adjust widths to control the relative size of p1
+layout <- (p1 | small_plots) + plot_layout(widths = c(1, 1))  # Adjust widths to control the relative size of p1
 print(layout)
 
