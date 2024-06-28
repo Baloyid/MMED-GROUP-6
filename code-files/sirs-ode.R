@@ -204,7 +204,7 @@ for (i in 1:length(data_files)) {
 
 # Saving results back in memory -------------------------------------------
 
-fullpar = fullpar2 |>
+fullpar2 = fullpar |>
   data.frame(check.names = F)
 rownames(fullpar) = 1:nrow(fullpar)
 write.csv(fullpar, paste0('output/sirs-ode/', 'full-pars.csv'), row.names = F)
@@ -258,7 +258,7 @@ infection`))
     calculate_summary_stats(`Probability of \ninfection`)
   ) %>%
   ungroup() %>%
-  ggplot(aes(x = median, y = factor(`Population size`), col = factor(Neighbourhood))) +
+  ggplot(aes(x = mean, y = factor(`Population size`), col = factor(Neighbourhood))) +
   geom_point(size = 3, position = position_dodge(width = 0.7)) + 
    facet_wrap(~Neighbourhood, scales = 'free') +
   geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2, position = position_dodge(width = 0.7)) +
