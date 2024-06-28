@@ -23,6 +23,8 @@ The repository contains the code and work for group 6. The repository is structu
 
 4. The img folder contains images that were generated while running the analysis, as well as model diagrams.
 
+5. The globalenv folders contain a snapshot rdata for a clean run of the ODE and chainbinomial runs.
+
 ---
 
 To be able to reproduce the analysis results and figures, one needs to either run the sirs-ode.R file to get ODE results or sirs-chainbinomial.R to get the chain-binomial results.
