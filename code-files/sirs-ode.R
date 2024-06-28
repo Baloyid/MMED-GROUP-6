@@ -31,6 +31,14 @@ process_file <- function(file) {
 
 abm_data <- map_dfr(data_files, process_file)
 
+abm_data = abm_data |>
+  mutate(
+    pop = str_split(file, '/') |> lapply(FUN = \(x) x[2]) |> unlist() |> str_replace_all('p', '') |> as.numeric(),
+    nb = str_split(file, '/') |> lapply(FUN = \(x) x[3]) |> unlist()
+  ) |>
+  filter(pop == 2000 & nb == 'no-neighbours') |>
+  select(-pop, -nb)
+
 # Functions --------------------------------------------------------------
 
 #' Function for computing binomial confidence intervals, and point estimates
@@ -164,6 +172,7 @@ nllikelihood <- function(par = par, obsDat=myDat, abm_data = abm_data) {
 
 # Fitting the model by MLE ------------------------------------------------
 
+data_files = abm_data |> pull(file) |> unique()
 for (i in 1:length(data_files)) {
   message('Running simulation: ', i, ' out of : ', length(data_files))
   
@@ -315,38 +324,75 @@ for (i in 1:length(data_files)) {
            N = S + I + R)
   
   # getting binomial confidence intervals using I and N
-  bci = with(out, DescTools::BinomCI(x = I, n = N, method = 'wilson') |>
-               data.frame() |>
-               mutate(
-                 across(
-                   .cols = everything(),
-                   .fns = \(x) x * N
-                 )
-               )
+  bci.out = with(out, DescTools::BinomCI(x = I, n = N, method = 'wilson') |>
+                   data.frame() |>
+                   mutate(
+                     across(
+                       .cols = everything(),
+                       .fns = \(x) x * N
+                     )
+                   )
+  )
+  
+  # using actual parameters
+  actual.out = ode(y = (filtered_data)[1, 1:3] |> unlist(),
+                   times = 1:nrow(filtered_data),
+                   func = sirs_model,
+                   parms = c(beta=.11, gamma=0.14285714, xi=0.7142857)) |>
+    data.frame() |>
+    mutate(time = row_number(),
+           N = S + I + R)
+  
+  # confidence intervals for actual parameters
+  bci.actual = with(actual.out, DescTools::BinomCI(x = I, n = N, method = 'wilson') |>
+                      data.frame() |>
+                      mutate(
+                        across(
+                          .cols = everything(),
+                          .fns = \(x) x * N
+                        )
+                      )
   )
   
   # storing the simulated data
-  if (i == 1) simdatfull = cbind(out, bci) |> mutate(file = data_files[i])
-  else simdatfull = rbind(simdatfull, cbind(out, bci) |> mutate(file = data_files[i]))
+  if (i == 1) simdatfull = cbind(out, bci.out) |> mutate(file = data_files[i])
+  else simdatfull = rbind(simdatfull, cbind(out, bci.out) |> mutate(file = data_files[i]))
   
+  if (i == 1) full.actual = cbind(actual.out, bci.actual) |> mutate(file = data_files[i])
+  else full.actual = rbind(full.actual, cbind(actual.out, bci.actual) |> mutate(file = data_files[i]))
   
   plts[[i]] = ggplot(filtered_data, aes(x = time)) +
     geom_point(aes(y = I), cex = .3) +
-    geom_line(data = cbind(out, bci),
+    geom_line(aes(y = I), cex = .3, alpha = .3, col = 'black') +
+    geom_line(data = cbind(out, bci.out),
               aes(x = time, y = I), col = 'red') +
-    geom_ribbon(data = cbind(out, bci),
+    geom_ribbon(data = cbind(out, bci.out),
                 aes(x = time, ymin = lwr.ci, ymax = upr.ci),
                 fill = 'red', alpha = .2) +
+    
+    # geom_line(data = cbind(actual.out, bci.actual),
+    #           aes(x = time, y = I), col = 'green') +
+    # geom_ribbon(data = cbind(actual.out, bci.actual),
+    #             aes(x = time, ymin = lwr.ci, ymax = upr.ci),
+    #             fill = 'green', alpha = .2) +
+
+    labs(x = 'Time (t)', y = 'I(t)') +
   theme_classic()
   
 }
 
-do.call(grid.arrange, plts)
+p0 = do.call(grid.arrange, plts)
+
+
+# Saving results back in memory -------------------------------------------
 
 fullpar = fullpar2 |>
   data.frame(check.names = F)
 rownames(fullpar) = 1:nrow(fullpar)
 write.csv(fullpar, paste0('output/sirs-ode/', 'full-pars.csv'), row.names = F)
+
+
+# Miscellaneous plots -----------------------------------------------------
 
 # plotting combined datasets for given neighbourhood and given pop size
 simdatfull2 = simdatfull |>
@@ -374,19 +420,23 @@ fd_temp = abm_data |>
   merge(simdatfull3 |> select(pop, nb, time, est, lwr.ci, upr.ci),
         by = c('time', 'pop', 'nb'), all.x = T) 
 
-ggplot() + 
+
+# combined plot for any one simulation run
+p1=ggplot() + 
   geom_point(data = fd_temp, aes(x = time, y = I), cex = .7) +
   geom_line(data = simdatfull3, aes(x = time, y = I), col = 'red') +
   geom_ribbon(data = simdatfull3, aes(x = time, ymin = lwr.ci, ymax = upr.ci),
               fill = 'red', alpha = .2) +
-  facet_wrap(nb ~ pop, scales = 'free', ncol = 6) + 
+  # facet_wrap(nb ~ pop, scales = 'free', ncol = 6) + 
   labs(x = 'Time', y = 'Number of infected individuals') +
-  ggtitle('Calibration results for SIRS-ODE models')
+  ggtitle('Calibration results for SIRS-ODE models') + 
+  theme_classic()
+
+# you can run this
+# p0 = do.call(grid.arrange, plts)
 
 
-
-
-
-
-
+small_plots <- wrap_plots(plts, ncol = 3)  # Adjust ncol to arrange plots as desired
+layout <- (small_plots | p1) + plot_layout(widths = c(1, 1))  # Adjust widths to control the relative size of p1
+print(layout)
 
